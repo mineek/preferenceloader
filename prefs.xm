@@ -4,6 +4,8 @@
 #import <Preferences/PSTableCell.h>
 #import <substrate.h>
 
+#import <dlfcn.h>
+
 #import "prefs.h"
 
 #define DEBUG_TAG "libprefs"
@@ -70,7 +72,7 @@ static BOOL _Firmware_lt_60 = NO;
 		PSSpecifier *specifier = [self specifier];
 		if(!specifier) {
 			NSString *errorText = @"There appears to have been an error restoring these preferences!";
-			return _specifiers = [[NSArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, nil)];
+			return _specifiers = [[NSMutableArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, nil)];
 		}
 		NSString *alternatePlistName = [specifier propertyForKey:PLAlternatePlistNameKey];
 		if(alternatePlistName)
@@ -80,7 +82,7 @@ static BOOL _Firmware_lt_60 = NO;
 		if(!_specifiers || [_specifiers count] == 0) {
 			[_specifiers release];
 			NSString *errorText = @"There appears to be an error with these preferences!";
-			_specifiers = [[NSArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, nil)];
+			_specifiers = [[NSMutableArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, nil)];
 		} else {
 			if([self respondsToSelector:@selector(setTitle:)]) {
 				[self setTitle:specifier.name];
@@ -172,7 +174,7 @@ static BOOL _Firmware_lt_60 = NO;
 		PLLog(@"Generating error specifiers for a failed bundle %@ :(", name);
 		NSString *const errorText = [NSString stringWithFormat:@"There was an error loading the preference bundle for %@: %@", name, [[self specifier] propertyForKey:@"errorText"]];
 		NSString *errorDetailText = [[self specifier] propertyForKey:@"errorDetailText"];
-		_specifiers = [[NSArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, errorDetailText)];
+		_specifiers = [[NSMutableArray alloc] initWithArray:generateErrorSpecifiersWithText(self, errorText, errorDetailText)];
 	}
 	return _specifiers;
 }
@@ -367,12 +369,11 @@ static void pl_lazyLoadBundleCore(id self, SEL _cmd, PSSpecifier *specifier, voi
 %hook NSBundle
 + (NSBundle *)bundleWithPath:(NSString *)path {
 	NSString *newPath = nil;
-	NSRange sysRange = [path rangeOfString:@"/System/Library/PreferenceBundles" options:0];
+	NSRange sysRange = [path rangeOfString:@"/var/jb/System/Library/PreferenceBundles" options:0];
 	if(sysRange.location != NSNotFound) {
-		newPath = [path stringByReplacingCharactersInRange:sysRange withString:@"/Library/PreferenceBundles"];
+		newPath = [path stringByReplacingCharactersInRange:sysRange withString:@"/var/jb/Library/PreferenceBundles"];
 	}
 	if(newPath && [[NSFileManager defaultManager] fileExistsAtPath:newPath]) {
-		// /Library/PreferenceBundles will override /System/Library/PreferenceBundles.
 		path = newPath;
 	}
 	return %orig;
@@ -395,11 +396,11 @@ static void pl_lazyLoadBundleCore(id self, SEL _cmd, PSSpecifier *specifier, voi
 	if(isBundle) {
 		// Second Try (bundlePath key failed)
 		if(![[NSFileManager defaultManager] fileExistsAtPath:bundlePath])
-			bundlePath = [NSString stringWithFormat:@"/Library/PreferenceBundles/%@.bundle", bundleName];
+			bundlePath = [NSString stringWithFormat:@"/var/jb/Library/PreferenceBundles/%@.bundle", bundleName];
 
 		// Third Try (/Library failed)
 		if(![[NSFileManager defaultManager] fileExistsAtPath:bundlePath])
-			bundlePath = [NSString stringWithFormat:@"/System/Library/PreferenceBundles/%@.bundle", bundleName];
+			bundlePath = [NSString stringWithFormat:@"/var/jb/System/Library/PreferenceBundles/%@.bundle", bundleName];
 
 		// Really? (/System/Library failed...)
 		if(![[NSFileManager defaultManager] fileExistsAtPath:bundlePath]) {
